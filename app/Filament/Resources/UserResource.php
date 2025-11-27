@@ -67,27 +67,29 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('id')
                     ->sortable()
                     ->searchable(),
+
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->label('Name'),
+
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
                     ->sortable()
-                    ->copyable(),
+                    ->copyable()
+                    ->label('Email Address'),
+
                 Tables\Columns\TextColumn::make('roles.name')
                     ->badge()
                     ->colors([
-                        'danger' => 'super_admin',
+                        'danger' => config('filament-shield.super_admin.name', 'super_admin'),
                         'warning' => 'admin',
                         'success' => 'user',
+                        'primary' => fn($state) => !in_array($state, [config('filament-shield.super_admin.name', 'super_admin'), 'admin', 'user']),
                     ])
                     ->searchable()
                     ->label('Roles'),
-                Tables\Columns\TextColumn::make('permissions.name')
-                    ->badge()
-                    ->color('info')
-                    ->label('Direct Permissions')
-                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -98,9 +100,6 @@ class UserResource extends Resource
                     ->relationship('roles', 'name')
                     ->multiple()
                     ->preload(),
-                Tables\Filters\Filter::make('has_permissions')
-                    ->query(fn($query) => $query->has('permissions'))
-                    ->label('Has Direct Permissions'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

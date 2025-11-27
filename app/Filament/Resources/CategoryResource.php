@@ -54,6 +54,19 @@ class CategoryResource extends Resource
                     ->label('Has Products'),
             ])
             ->actions([
+                Tables\Actions\Action::make('view_products')
+                    ->label('View Products')
+                    ->icon('heroicon-o-eye')
+                    ->url(
+                        fn(Category $record): string =>
+                        route('filament.admin.resources.products.index', [
+                            'tableFilters' => [
+                                'category' => [
+                                    'value' => $record->id,
+                                ],
+                            ],
+                        ])
+                    ),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

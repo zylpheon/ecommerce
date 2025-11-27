@@ -13,59 +13,106 @@ class ShieldSeeder extends Seeder
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-        $resources = ['category', 'customer', 'product', 'order', 'user', 'permission'];
+
+        // Create Permissions
+        $resources = ['category', 'customer', 'product', 'order', 'user', 'permission', 'role'];
         $actions = ['view', 'view_any', 'create', 'update', 'delete', 'delete_any'];
+
         foreach ($resources as $resource) {
             foreach ($actions as $action) {
-                Permission::create([
+                Permission::firstOrCreate([
                     'name' => "{$action}_{$resource}",
                     'guard_name' => 'web'
                 ]);
             }
         }
-        Permission::create(['name' => 'view_shield::role', 'guard_name' => 'web']);
-        Permission::create(['name' => 'view_any_shield::role', 'guard_name' => 'web']);
-        Permission::create(['name' => 'create_shield::role', 'guard_name' => 'web']);
-        Permission::create(['name' => 'update_shield::role', 'guard_name' => 'web']);
-        Permission::create(['name' => 'delete_shield::role', 'guard_name' => 'web']);
-        Permission::create(['name' => 'delete_any_shield::role', 'guard_name' => 'web']);
-        $superAdmin = Role::create(['name' => 'super_admin', 'guard_name' => 'web']);
-        $admin = Role::create(['name' => 'admin', 'guard_name' => 'web']);
-        $user = Role::create(['name' => 'user', 'guard_name' => 'web']);
+
+        // Create Roles
+        $owner = Role::firstOrCreate(['name' => 'Owner', 'guard_name' => 'web']);
+        $manager = Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']);
+        $staff = Role::firstOrCreate(['name' => 'Staff', 'guard_name' => 'web']);
+        $guest = Role::firstOrCreate(['name' => 'Guest', 'guard_name' => 'web']);
+        $superAdminName = config('filament-shield.super_admin.name', 'super_admin');
+        $superAdmin = Role::firstOrCreate(['name' => $superAdminName, 'guard_name' => 'web']);
+
+        // Assign Permissions to Roles
+        // Owner - Full Access
+        $owner->givePermissionTo(Permission::all());
+
+        // Super Admin - Full Access
         $superAdmin->givePermissionTo(Permission::all());
-        $adminPermissions = Permission::where('name', 'like', 'view%')
-            ->orWhere('name', 'like', 'create%')
-            ->orWhere('name', 'like', 'update%')
-            ->get();
-        $admin->givePermissionTo($adminPermissions);
-        $userPermissions = Permission::where('name', 'like', 'view%')
-            ->orWhere('name', 'like', 'view_any%')
-            ->get();
-        $user->givePermissionTo($userPermissions);
+
+        // Manager - Can manage most things except users and roles
+        $managerPermissions = Permission::where(function ($query) {
+            $query->where('name', 'like', '%category%')
+                ->orWhere('name', 'like', '%product%')
+                ->orWhere('name', 'like', '%order%')
+                ->orWhere('name', 'like', '%customer%');
+        })->get();
+        $manager->givePermissionTo($managerPermissions);
+
+        // Staff - Can view and create, limited update
+        $staffPermissions = Permission::where(function ($query) {
+            $query->where('name', 'like', 'view%')
+                ->orWhere('name', 'like', 'create_order')
+                ->orWhere('name', 'like', 'create_customer')
+                ->orWhere('name', 'like', 'update_order')
+                ->orWhere('name', 'like', 'update_customer');
+        })->get();
+        $staff->givePermissionTo($staffPermissions);
+
+        // Guest - View only
+        $guestPermissions = Permission::where('name', 'like', 'view%')->get();
+        $guest->givePermissionTo($guestPermissions);
+
+        // Create Users
+        $users = [
+            [
+                'name' => 'Ridhwan',
+                'email' => 'ridhwan@example.com',
+                'role' => 'Owner'
+            ],
+            [
+                'name' => 'Ahsan',
+                'email' => 'ahsan@example.com',
+                'role' => 'Manager'
+            ],
+            [
+                'name' => 'Rizal',
+                'email' => 'rizal@example.com',
+                'role' => 'Staff'
+            ],
+            [
+                'name' => 'Rapip',
+                'email' => 'rapip@example.com',
+                'role' => 'Guest'
+            ],
+        ];
+
+        foreach ($users as $userData) {
+            $user = User::firstOrCreate(
+                ['email' => $userData['email']],
+                [
+                    'name' => $userData['name'],
+                    'password' => Hash::make('password'),
+                    'email_verified_at' => now(),
+                ]
+            );
+            $user->assignRole($userData['role']);
+        }
+
+        // Assign existing admin
         $existingAdmin = User::where('email', 'lrv94451@gmail.com')->first();
         if ($existingAdmin) {
-            $existingAdmin->assignRole('super_admin');
-            $this->command->info('✅ Existing admin user assigned as super_admin');
+            $existingAdmin->assignRole($superAdminName);
         }
-        $demoAdmin = User::create([
-            'name' => 'Demo Admin',
-            'email' => 'admin@demo.com',
-            'password' => Hash::make('password'),
-            'email_verified_at' => now(),
-        ]);
-        $demoAdmin->assignRole('admin');
-        $demoUser = User::create([
-            'name' => 'Demo User',
-            'email' => 'user@demo.com',
-            'password' => Hash::make('password'),
-            'email_verified_at' => now(),
-        ]);
-        $demoUser->assignRole('user');
-        $this->command->info('✅ Roles and Permissions created successfully!');
+
+        $this->command->info('✅ Roles, Permissions, and Users created successfully!');
         $this->command->info('');
-        $this->command->info('📋 Demo Users:');
-        $this->command->info('Super Admin: lrv94451@gmail.com (existing password)');
-        $this->command->info('Admin: admin@demo.com | Password: password');
-        $this->command->info('User: user@demo.com | Password: password');
+        $this->command->info('📋 Users Created:');
+        $this->command->info('Owner: ridhwan@example.com | Password: password');
+        $this->command->info('Manager: ahsan@example.com | Password: password');
+        $this->command->info('Staff: rizal@example.com | Password: password');
+        $this->command->info('Guest: rapip@example.com | Password: password');
     }
 }
